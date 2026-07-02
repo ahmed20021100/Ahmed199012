@@ -2,7 +2,6 @@ from pyrogram import Client, filters
 import json
 import asyncio
 
-# ===== البيانات المطلوبة =====
 API_ID = 39001664
 API_HASH = "2fcd5c353777e4a297df4797e662c379"
 
@@ -26,13 +25,11 @@ def save_data():
 
 load_data()
 
-# إنشاء Client (حسابك الشخصي)
 client = Client("my_account", api_id=API_ID, api_hash=API_HASH)
 
 sender_task = None
 
 async def send_messages():
-    """إرسال الرسالة كل دقيقة"""
     await asyncio.sleep(5)
     
     while app_data['is_running']:
@@ -41,70 +38,57 @@ async def send_messages():
                 for group in app_data['groups']:
                     try:
                         await client.send_message(group, app_data['message'])
-                        print(f"✅ تم الإرسال إلى: {group}")
+                        print(f"OK: {group}")
                     except Exception as e:
-                        print(f"❌ خطأ {group}: {e}")
+                        print(f"ERROR {group}: {e}")
         except Exception as e:
-            print(f"❌ خطأ: {e}")
+            print(f"ERROR: {e}")
         
         await asyncio.sleep(60)
 
 @client.on_message(filters.command("start") & filters.private)
 async def start_cmd(client, message):
-    text = (
-        "🤖 مرحبا!\n\n"
-        "الأوامر:\n"
-        "/set_msg - اكتب الرسالة\n"
-        "/add_group - أضيف كروب\n"
-        "/list - عرض الكروبات\n"
-        "/send - ابدأ الإرسال\n"
-        "/stop - أوقف الإرسال\n"
-    )
+    text = "/set_msg\n/add_group\n/list\n/send\n/stop"
     await message.reply(text)
 
 @client.on_message(filters.command("set_msg") & filters.private)
-async def set_message(client, message):
-    await message.reply("اكتب الرسالة (reply على هذه الرسالة):")
+async def set_msg(client, message):
+    await message.reply("Reply with message:")
 
 @client.on_message(filters.command("add_group") & filters.private)
-async def add_group(client, message):
-    await message.reply("اكتب معرف الكروب:\n@group_name\nأو\n-1001234567890")
+async def add_grp(client, message):
+    await message.reply("Reply with group:\n@name or -100123")
 
 @client.on_message(filters.command("list") & filters.private)
-async def list_groups(client, message):
+async def lst(client, message):
     if not app_data['groups']:
-        await message.reply("لا توجد كروبات!")
+        await message.reply("No groups")
         return
-    
-    text = "الكروبات:\n\n"
-    for i, g in enumerate(app_data['groups'], 1):
-        text += f"{i}. {g}\n"
-    
+    text = "\n".join([f"{i}. {g}" for i, g in enumerate(app_data['groups'], 1)])
     await message.reply(text)
 
 @client.on_message(filters.command("send") & filters.private)
-async def start_sending(client, message):
+async def snd(client, message):
     global sender_task
     
     if not app_data['message']:
-        await message.reply("اكتب الرسالة أولاً!")
+        await message.reply("Set message first")
         return
     if not app_data['groups']:
-        await message.reply("أضيف كروبات أولاً!")
+        await message.reply("Add groups first")
         return
     if app_data['is_running']:
-        await message.reply("البوت يعمل بالفعل!")
+        await message.reply("Running")
         return
     
     app_data['is_running'] = True
     save_data()
-    
     sender_task = asyncio.create_task(send_messages())
-    await message.reply(f"✅ بدأ الإرسال!\n\nعدد الكروبات: {len(app_data['groups'])}")
-    print("✅ بدأ الإرسال")
+    await message.reply(f"Started {len(app_data['groups'])} groups")
+    print("STARTED")
 
 @client.on_message(filters.command("stop") & filters.private)
-async def stop_sending(client, message):
+async def stp(client, message):
     global sender_task
     
     app_data['is_running'] = False
@@ -114,44 +98,38 @@ async def stop_sending(client, message):
         sender_task.cancel()
         sender_task = None
     
-    await message.reply("⏹️ توقف الإرسال!")
-    print("⏹️ توقف الإرسال")
+    await message.reply("Stopped")
+    print("STOPPED")
 
-@client.on_message(filters.text & filters.private & ~filters.command)
-async def text_handler(client, message):
+@client.on_message(filters.private)
+async def txt_handler(client, message):
+    if message.text.startswith('/'):
+        return
+    
     if not message.reply_to_message_id:
         return
     
-    # الحصول على الرسالة المرد عليها
-    replied = await client.get_messages(message.chat.id, message.reply_to_message_id)
-    
-    # إذا كان الرد على "اكتب الرسالة"
-    if "اكتب الرسالة" in replied.text:
-        app_data['message'] = message.text
-        save_data()
-        await message.reply(f"✅ تم حفظ الرسالة!\n\n{app_data['message']}")
-        print(f"✅ رسالة محفوظة: {app_data['message'][:50]}")
-    
-    # إذا كان الرد على "اكتب معرف الكروب"
-    elif "معرف الكروب" in replied.text:
-        group = message.text
+    try:
+        replied = await client.get_messages(message.chat.id, message.reply_to_message_id)
         
-        if group not in app_data['groups']:
-            app_data['groups'].append(group)
+        if "Reply with message" in replied.text:
+            app_data['message'] = message.text
             save_data()
-            await message.reply(f"✅ تم إضافة: {group}")
-            print(f"✅ كروب مضاف: {group}")
-        else:
-            await message.reply("هذا الكروب موجود بالفعل!")
+            await message.reply(f"OK: {app_data['message']}")
+        
+        elif "Reply with group" in replied.text:
+            group = message.text
+            if group not in app_data['groups']:
+                app_data['groups'].append(group)
+                save_data()
+                await message.reply(f"Added: {group}")
+            else:
+                await message.reply("Exists")
+    except:
+        pass
 
 def main():
-    print("=" * 50)
-    print("🤖 بوت الحساب الشخصي - شغال!")
-    print("=" * 50)
-    print("أول تشغيل:")
-    print("1. أدخل رقم الهاتف")
-    print("2. أدخل كود التحقق")
-    print("=" * 50)
+    print("BOT STARTED")
     client.run()
 
 if __name__ == "__main__":

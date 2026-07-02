@@ -8,7 +8,7 @@ import os
 
 
 # ===== الإعدادات =====
-TOKEN = "8852345354:AAFILybdpOLslQus7acOxqkszjPWwzCYgms"  # التوكن داخل الكود
+TOKEN = "8852345354:AAFILybdpOLslQus7acOxqkszjPWwzCYgms"
 ADMIN_ID = 1025310531
 
 # ===== بيانات التطبيق =====
@@ -22,8 +22,8 @@ app_data = {
 def load_data():
     global app_data
     try:
-       
- ig.json', 'r', encoding='utf-8') as f:
+        with open('spammer_c
+ong='utf-8') as f:
             app_data = json.load(f)
     except:
         app_data = {
@@ -51,8 +51,8 @@ scheduler = AsyncIOScheduler()
 application = Application.builder().token(TOKEN).build()
 
 # ===== دوال البوت =====
-async def start(up
-date: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update:
+ Update, context: ContextTypes.DEFAULT_TYPE):
     """فتح لوحة التحكم الرئيسية"""
     user_id = update.message.from_user.id
     
@@ -67,8 +67,8 @@ date: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("➖ حذف كروب", callback_data="remove_group")],
         [InlineKeyboardButton("📋 عرض القائمة", callback_data="show_list")],
         [InlineKeyboardButton("▶️ ابدأ الإرسال", callback_data="start_sending")],
-        [InlineKeyboardButton("⏹️ أوقف ا
-ل if not app_data['is_running'] else "🟢 شغال"
+        [InlineKeyboardButton("⏹️ أ
+وتوقف" if not app_data['is_running'] else "🟢 شغال"
     message_preview = (app_data['message'][:50] + "...") if len(app_data['message']) > 50 else app_data['message']
     
     await update.message.reply_text(
@@ -92,9 +92,8 @@ async def set_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "(يمكنك استخدام رموز وجوه وأسطر جديدة)\n\n"
         "مثال:\n"
         "🎬 انضم لقناتنا!\n"
- "
-        "🎯 لا تفوت العروض!"
-
+     
+      "🎯 لا تفوت العروض!"
     )
     
     context.user_data['waiting_for'] = 'message'
@@ -112,8 +111,7 @@ async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "مثال: `-1001234567890`"
     )
     
-    context.user_data['waiting
-_ = 'group'
+    context.user_data['waiting_for'] = 'group'
 
 async def remove_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """حذف كروب من القائمة"""
@@ -128,8 +126,8 @@ async def remove_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for idx, group in enumerate(app_data['groups']):
         keyboard.append([InlineKeyboardButton(f"🗑️ {group}", callback_data=f"delete_group_{idx}")])
     
-    keyboard.append([InlineKeyboardButton("❌ إلغاء", callback_data="cancel")])
-
+    keyboard.append([InlineKeyboardButton("❌ إلغاء"
+, callback_data="cancel")])
     
     await query.message.reply_text(
         "اختر الكروب اللي تبي تحذفه:",
@@ -147,8 +145,9 @@ async def show_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     text = "📋 **قائمة الكروبات:**\n\n"
     for idx, group in enumerate(app_data['groups'], 1):
+
         text += f"{idx}. {group}\n"
- 
+    
     await query.message.reply_text(text)
 
 async def start_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -164,9 +163,8 @@ async def start_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("❌ لم تحدد كروبات بعد!\n\nاستخدم 'إضافة كروب' أولاً")
         return
     
-    if app_data['is_running']:
-        await query.message.reply_text("⚠️ البوت يعمل بالفعل!")
-
+  
+  await query.message.reply_text("⚠️ البوت يعمل بالفعل!")
         return
     
     app_data['is_running'] = True
@@ -190,9 +188,9 @@ async def start_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.reply_text(
         "▶️ **البوت شغال!**\n\n"
         f"📝 الكليشة: {app_data['message'][:40]}...\n"
+
         f"👥 عدد الكروبات: {len(app_data['groups'])}\n"
-      
- زمني: كل دقيقة\n\n"
+        f"⏰ الفاصل الزمني: كل دقيقة\n\n"
         f"⏹️ اضغط 'أوقف الإرسال' لإيقاف البوت"
     )
     
@@ -210,11 +208,10 @@ async def stop_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_data['is_running'] = False
     save_data()
     
-    if scheduler.get_job('spam_job'):
-        scheduler.remove_job('spam_job')
+    if scheduler.get_j
+o
     
     await query.message.reply_text(
-
         "⏹️ **البوت متوقف!**\n\n"
         "الإرسال توقف بنجاح.\n"
         "اضغط 'ابدأ الإرسال' لتشغيله مرة أخرى."
@@ -235,8 +232,9 @@ async def send_message_to_groups():
         try:
             await application.bot.send_message(
                 chat_id=group,
-                text=app_data['message
-'rkdown'
+                text=app_data['message'],
+
+                parse_mode='Markdown'
             )
             sent_count += 1
             logger.info(f"✅ [{timestamp}] تم الإرسال إلى: {group}")
@@ -255,8 +253,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⛔ غير مصرح!")
         return
     
-    if context.user_data.get('waiting_for') == 'message':
-
+    i
+f == 'message':
         app_data['message'] = update.message.text
         save_data()
         
@@ -276,8 +274,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"✅ **تم إضافة الكروب!**\n\n"
                 f"🔢 {group}\n\n"
                 f"إجمالي الكروبات: {len(app_data['groups'])}"
-         
- e.reply_text(
+            )
+
+        else:
+            await update.message.reply_text(
                 f"⚠️ **هذا الكروب موجود بالفعل!**"
             )
         
@@ -301,11 +301,11 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await add_group(update, context)
     
     elif query.data == "remove_group":
-        await remove_group(update, context)
+        await r
+edate, context)
     
     elif query.data == "show_list":
         await show_list(update, context)
-
     
     elif query.data == "start_sending":
         await start_sending(update, context)
@@ -330,8 +330,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ===== تسجيل المعالجات =====
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(buttons))
-ap
-ption.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 # ===== تشغيل البوت =====
 def main():

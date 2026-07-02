@@ -1,10 +1,8 @@
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from datetime import datetime
 import json
-import os
+import asyncio
 
 TOKEN = "8852345354:AAFILybdpOLslQus7acOxqkszjPWwzCYgms"
 ADMIN_ID = 1025310531
@@ -21,29 +19,23 @@ def load_data():
         with open('spammer_config.json', 'r', encoding='utf-8') as f:
             app_data = json.load(f)
     except:
-        app_data = {
-            'message': '',
-            'groups': [],
-            'is_running': False
-        }
+        app_data = {'message': '', 'groups': [], 'is_running': False}
 
 def save_data():
     with open('spammer_config.json', 'w', encoding='utf-8') as f:
         json.dump(app_data, f, ensure_ascii=False, indent=2)
 
 load_data()
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
-application = Application.builder().token(TOKEN).build()
+application = None
+sender_task = None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    
     if user_id != ADMIN_ID:
-        await update.message.reply_text("Error: Admin only!")
+        await update.message.reply_text("Admin only!")
         return
     
     keyboard = [
@@ -59,20 +51,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = app_data['message'][:50] + "..." if len(app_data['message']) > 50 else app_data['message']
     
     await update.message.reply_text(
-        f"Bot Status: {status}\nMessage: {msg if msg else 'Not set'}\nGroups: {len(app_data['groups'])}",
+        f"Status: {status}\nMessage: {msg if msg else 'Not set'}\nGroups: {len(app_data['groups'])}",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
 async def set_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text("Send the message you want to send every minute:")
+    await query.message.reply_text("Send the message:")
     context.user_data['waiting_for'] = 'message'
 
 async def add_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    await query.message.reply_text("Send the group ID (e.g., @group_name or -1001234567890):")
+    await query.message.reply_text("Send group ID (@group_name or -1001234567890):")
     context.user_data['waiting_for'] = 'group'
 
 async def remove_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -85,9 +77,9 @@ async def remove_group(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = []
     for idx, group in enumerate(app_data['groups']):
-        keyboard.append([InlineKeyboardButton(f"Delete: {group}", callback_data=f"delete_group_{idx}")])
+        keyboard.append([InlineKeyboardButton(f"X {group}", callback_data=f"delete_group_{idx}")])
     
-    await query.message.reply_text("Choose group to delete:", reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.message.reply_text("Delete:", reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def show_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -97,24 +89,36 @@ async def show_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("No groups!")
         return
     
-    text = "Groups:\n\n"
-    for idx, group in enumerate(app_data['groups'], 1):
-        text += f"{idx}. {group}\n"
-    
+    text = "Groups:\n" + "\n".join([f"{i}. {g}" for i, g in enumerate(app_data['groups'], 1)])
     await query.message.reply_text(text)
 
+async def sender_loop():
+    """Send message every 60 seconds"""
+    while app_data['is_running']:
+        try:
+            if app_data['message'] and app_data['groups']:
+                for group in app_data['groups']:
+                    try:
+                        await application.bot.send_message(chat_id=group, text=app_data['message'])
+                        logger.info(f"Sent to {group}")
+                    except Exception as e:
+                        logger.error(f"Error {group}: {e}")
+        except Exception as e:
+            logger.error(f"Sender error: {e}")
+        
+        await asyncio.sleep(60)
+
 async def start_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global sender_task
     query = update.callback_query
     await query.answer()
     
     if not app_data['message']:
         await query.message.reply_text("Set message first!")
         return
-    
     if not app_data['groups']:
         await query.message.reply_text("Add groups first!")
         return
-    
     if app_data['is_running']:
         await query.message.reply_text("Already running!")
         return
@@ -122,18 +126,12 @@ async def start_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_data['is_running'] = True
     save_data()
     
-    if not scheduler.running:
-        scheduler.start()
-    
-    if scheduler.get_job('spam_job'):
-        scheduler.remove_job('spam_job')
-    
-    scheduler.add_job(send_message_to_groups, 'interval', minutes=1, id='spam_job')
-    
-    await query.message.reply_text(f"Started! Sending to {len(app_data['groups'])} groups every minute.")
+    sender_task = asyncio.create_task(sender_loop())
+    await query.message.reply_text(f"Started! Groups: {len(app_data['groups'])}")
     logger.info("Sender started")
 
 async def stop_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global sender_task
     query = update.callback_query
     await query.answer()
     
@@ -144,45 +142,32 @@ async def stop_sending(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_data['is_running'] = False
     save_data()
     
-    if scheduler.get_job('spam_job'):
-        scheduler.remove_job('spam_job')
+    if sender_task:
+        sender_task.cancel()
+        sender_task = None
     
     await query.message.reply_text("Stopped!")
     logger.info("Sender stopped")
 
-async def send_message_to_groups():
-    if not app_data['is_running'] or not app_data['message'] or not app_data['groups']:
-        return
-    
-    for group in app_data['groups']:
-        try:
-            await application.bot.send_message(chat_id=group, text=app_data['message'])
-            logger.info(f"Sent to: {group}")
-        except Exception as e:
-            logger.error(f"Error sending to {group}: {str(e)}")
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    
     if user_id != ADMIN_ID:
         return
     
     if context.user_data.get('waiting_for') == 'message':
         app_data['message'] = update.message.text
         save_data()
-        await update.message.reply_text(f"Message saved!")
+        await update.message.reply_text("Message saved!")
         context.user_data['waiting_for'] = None
     
     elif context.user_data.get('waiting_for') == 'group':
         group = update.message.text
-        
         if group not in app_data['groups']:
             app_data['groups'].append(group)
             save_data()
-            await update.message.reply_text(f"Group added: {group}")
+            await update.message.reply_text(f"Added: {group}")
         else:
-            await update.message.reply_text(f"Group already exists!")
-        
+            await update.message.reply_text("Exists!")
         context.user_data['waiting_for'] = None
 
 async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,7 +175,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     
     if user_id != ADMIN_ID:
-        await query.answer("Error!", show_alert=True)
+        await query.answer("Error!")
         return
     
     await query.answer()
@@ -213,14 +198,17 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data()
         await query.message.reply_text(f"Deleted: {deleted}")
 
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(buttons))
-
-from telegram.ext import MessageHandler, filters
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
 def main():
-    print("Bot is running...")
+    global application
+    application = Application.builder().token(TOKEN).build()
+    
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(buttons))
+    
+    from telegram.ext import MessageHandler, filters
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("Bot running...")
     application.run_polling()
 
 if __name__ == "__main__":

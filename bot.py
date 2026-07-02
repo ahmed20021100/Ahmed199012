@@ -3,8 +3,8 @@ import json
 import asyncio
 
 # ===== البيانات المطلوبة =====
-API_ID = 0  # ضع رقمك من https://my.telegram.org
-API_HASH = ""  # ضع نصك من https://my.telegram.org
+API_ID = 39001664
+API_HASH = "2fcd5c353777e4a297df4797e662c379"
 
 app_data = {
     'message': '',

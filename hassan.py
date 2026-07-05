@@ -15,8 +15,8 @@ TOKEN = os.getenv("BOT_TOKEN")  # ياخذ التوكن من الإعدادات
 ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
 # ===== إعدادات الفيديو =====
-MAX_TELEGRAM_MB = 50  # حد أقصى لحجم الملف بالميجابايت (تيليجرام الحد الأقصى 2GB)
-DEFAULT_FORMAT = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"  # جودة افتراضية
+MAX_TELEGRAM_MB = 2000  # حد أقصى لحجم الملف بالميجابايت (2GB - حد تيليجرام الأقصى)
+MAX_QUALITY_HEIGHT = 2000  # حد أقصى للجودة (resolution) - 2000p
 
 # ===== المنصات المدعومة =====
 PLATFORMS = {
@@ -120,9 +120,12 @@ def get_available_qualities(url: str):
         if f.get("vcodec") in (None, "none") and f.get("acodec") not in (None, "none"):
             has_audio_only = True
 
-    options = [{"label": "⭐ أفضل جودة متاحة", "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
+    # فلترة الجودات بناءً على الحد الأقصى المسموح (2000p)
+    filtered_heights = [h for h in heights if h <= MAX_QUALITY_HEIGHT]
+    
+    options = [{"label": "⭐ أفضل جودة متاحة", "format": f"bestvideo[height<={MAX_QUALITY_HEIGHT}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
 
-    for h in sorted(heights, reverse=True)[:4]:
+    for h in sorted(filtered_heights, reverse=True)[:4]:
         options.append({
             "label": f"🎞️ {h}p",
             "format": f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h}]",
@@ -318,7 +321,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         settings_text = (
             "⚙️ **إعدادات البوت الحالية**\n\n"
             f"📦 **حد أقصى لحجم الملف:** {MAX_TELEGRAM_MB} MB\n"
-            f"🎬 **الجودة الافتراضية:** 720p\n\n"
+            f"🎬 **حد أقصى للجودة:** {MAX_QUALITY_HEIGHT}p\n\n"
             "_لتغيير الإعدادات، عدّل المتغيرات في أول الكود_"
         )
         await query.message.reply_text(settings_text)

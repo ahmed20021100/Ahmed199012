@@ -14,11 +14,8 @@ import yt_dlp
 
 TOKEN = os.getenv("BOT_TOKEN")
 
-
- # ===== معرف الأدمن =====
 ADMIN_ID = 1025310531
 
-# ===== المنصات المدعومة =====
 PLATFORMS = {
     "tiktok": "تيك توك (TikTok)",
     "instagram": "انستغرام (Instagram)",
@@ -28,16 +25,14 @@ PLATFORMS = {
     "pinterest": "بينتريست (Pinterest)",
     "snapchat": "سناب شات (Snapchat)",
     "vimeo": "فيميو (Vimeo)",
-    "likee": "لاي
-ك: "يوتيوب (YouTube)",
+    "likee": "لايكي (Likee)",
+    "youtube": "يوتيوب (YouTube)",
     "other": "رابط آخر (أي موقع)"
 }
 
-# ===== حدود الحجم =====
-MAX_VIDEO_MB = 2000  # 2 جيجابايت للفيديو (كملف)
-MAX_AUDIO_MB = 100   # 100 ميجابايت للصوت
+MAX_VIDEO_MB = 2000
+MAX_AUDIO_MB = 100
 
-# ===== بيانات المستخدمين =====
 user_data = {}
 user_activity = {}
 command_usage = {}
@@ -45,24 +40,23 @@ user_selected_platform = {}
 user_pending_link = {}
 user_queues = {}
 
-# ===== رسائل ترحيبية =====
 WELCOME_MESSAGES = [
     "اهلاً بك! جاهز لتحميل فيديوهاتك؟",
-
-     "مرحباً! اختر المنصة وابعث الرابط",
+    "مرحباً! اختر المنصة وابعث الرابط",
     "اهلاً! انا هنا لأساعدك في تحميل الفيديوهات",
     "مرحباً! جرب البوت الآن واحصل على فيديوهاتك بجودة عالية",
     "اهلاً بك! معي تقدر تحمل فيديوهات من كل المنصات"
 ]
 
-# ===== تحميل البيانات =====
 def load_data():
     global user_data, user_activity, command_usage
     try:
         with open('user_data.json', 'r', encoding='utf-8') as f:
             user_data = json.load(f)
-   
- :
+    except:
+        user_data = {}
+
+    try:
         with open('user_activity.json', 'r', encoding='utf-8') as f:
             user_activity = json.load(f)
     except:
@@ -78,9 +72,8 @@ def save_data():
     try:
         with open('user_data.json', 'w', encoding='utf-8') as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
-
-         with open('user_activity.json', 'w', encoding='utf-8') as f:
-            json.dump(user_activity, f, ensure_ascii=False, indent=2)
+        with open('user_activity.json', 'w', encoding='utf-
+8ivity, f, ensure_ascii=False, indent=2)
         with open('command_usage.json', 'w', encoding='utf-8') as f:
             json.dump(command_usage, f, ensure_ascii=False, indent=2)
     except Exception as e:
@@ -88,12 +81,12 @@ def save_data():
 
 load_data()
 
-# ===== Auto Save =====
 def auto_save():
     while True:
         time.sleep(300)
-        save_data
-(ry, max_age_minutes=30):
+        save_data()
+
+def cleanup_old_files(directory, max_age_minutes=30):
     try:
         now = time.time()
         for filename in os.listdir(directory):
@@ -108,13 +101,11 @@ def auto_save():
 
 logging.basicConfig(
     level=logging.INFO,
-
-     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 application = Application.builder().token(TOKEN).build()
 
-# ===== دوال مساعدة =====
 def detect_platform(url):
     url_lower = url.lower()
     if "tiktok.com" in url_lower or "vt.tiktok.com" in url_lower:
@@ -123,8 +114,9 @@ def detect_platform(url):
         return "instagram"
     elif "twitter.com" in url_lower or "x.com" in url_lower:
         return "twitter"
-    elif "facebook.com" in url_lower or "fb.com" in url_lower or "fb.wa
-t in url_lower or "redd.it" in url_lower:
+    elif "facebook.com" in url_lower or "fb.com" in url_lower or "fb.watch" in url_lower:
+        return "facebook"
+    elif "reddit.com" in url_lower or "redd.it" in url_lower:
         return "reddit"
     elif "pinterest.com" in url_lower or "pin.it" in url_lower:
         return "pinterest"
@@ -141,9 +133,9 @@ t in url_lower or "redd.it" in url_lower:
 
 def log_user_activity(user_id, command):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    user_activity[str(user_id)] = now
-
-     if command not in command_usage:
+    u
+ser_activity[str(user_id)] = now
+    if command not in command_usage:
         command_usage[command] = 0
     command_usage[command] += 1
     save_data()
@@ -164,8 +156,7 @@ def get_available_qualities(url):
         "ignoreerrors": True,
     }
     try:
- 
- ) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             if info is None:
                 return None
@@ -189,8 +180,7 @@ def get_available_qualities(url):
         if vcodec not in (None, "none") and acodec not in (None, "none"):
             if height:
                 heights.add(int(height))
-
-                 qualities.append({
+                qualities.append({
                     "height": int(height),
                     "ext": ext,
                     "format": f
@@ -212,11 +202,11 @@ def get_available_qualities(url):
 
     for h in sorted(heights, reverse=True)[:4]:
         if h >= 1080:
-            label = 
-f 720:
+            label = f"{h}p (Full HD)"
+        elif h >= 720:
             label = f"{h}p (HD)"
         else:
-            label = f"{h}p"
+ {h}p"
         
         options.append({
             "label": label,
@@ -239,8 +229,7 @@ f 720:
         })
         options.append({
             "label": "صوت فقط (MP3) - جودة منخفضة",
-
-             "format": "bestaudio[abr<=64]",
+            "format": "bestaudio[abr<=64]",
             "audio_only": True
         })
 
@@ -259,13 +248,15 @@ f 720:
 
     return options
 
-def download_video(url, output_dir, format_spec="best[ext=mp4]/best", audio_only=False):
+def download_video
+(c="best[ext=mp4]/best", audio_only=False):
     try:
         output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
         ydl_opts = {
             "outtmpl": output_template,
-            "format"
-:          "no_warnings": True,
+            "format": format_spec,
+            "quiet": True,
+            "no_warnings": True,
             "noplaylist": True,
             "ignoreerrors": True,
             "nooverwrites": True,
@@ -290,15 +281,13 @@ def download_video(url, output_dir, format_spec="best[ext=mp4]/best", audio_only
             filename = ydl.prepare_filename(info)
             if audio_only:
                 filename = os.path.splitext(filename)[0] + ".mp3"
-
-             
+            
             if os.path.exists(filename) and os.path.getsize(filename) > 0:
                 return filename
     except Exception as e:
         logging.error(f"خطأ في التحميل: {e}")
     return None
 
-# ===== دوال البوت =====
 async def start(update, context):
     user = update.message.from_user
     user_id = user.id
@@ -316,8 +305,8 @@ async def start(update, context):
         save_data()
 
     log_user_activity(str(user_id), "/start")
-  
- e_msg = random.choice(WELCOME_MESSAGES)
+    
+    welcome_msg = random.choice(WELCOME_MESSAGES)
     await update.message.reply_text(
         f"{welcome_msg}\n\nاختر المنصة التي تريد التحميل منها:",
         reply_markup=get_platforms_keyboard()
@@ -328,9 +317,8 @@ async def start_callback(query, context):
     await query.message.delete()
     await query.message.reply_text(
         "القائمة الرئيسية\n\nاختر المنصة:",
-        reply_markup=get_platforms_keyboard()
-    )
-    await query.answer()
+        reply_markup=get_platforms
+_y.answer()
 
 async def stats_callback(message, context):
     total_users = len(user_data)
@@ -341,8 +329,7 @@ async def stats_callback(message, context):
     month_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d")
 
     active_today = sum(1 for u in user_activity.values() if u.startswith(today))
-
-     active_week = sum(1 for u in user_activity.values() if u >= week_ago)
+    active_week = sum(1 for u in user_activity.values() if u >= week_ago)
     active_month = sum(1 for u in user_activity.values() if u >= month_ago)
 
     stats_text = f"احصائيات البوت\n\n"
@@ -361,8 +348,10 @@ async def stats_callback(message, context):
 
 async def users_callback(message, context):
     users_list = list(user_data.values())
-    users_list.re
-v"
+    users_list.reverse()
+    users_list = users_list[:10]
+
+    text = "اخر 10 مستخدمين:\n\n"
     for i, user in enumerate(users_list, 1):
         name = user.get('first_name', 'غير معروف')
         username = user.get('username', '')
@@ -391,15 +380,14 @@ async def export_callback(message, context):
 
     await context.bot.send_document(
         chat_id=message.chat.id,
-
-         document=open('export_data.json', 'rb'),
+        document=open('export_data.json', 'rb'),
         filename=f'users_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json',
         caption="تصدير بيانات المستخدمين"
     )
 
     os.remove('export_data.json')
 
-async def help_command(update, context):
+async def
     await update.message.reply_text(
         "دليل استخدام البوت\n\n"
         "الاوامر الاساسية:\n"
@@ -416,13 +404,9 @@ async def help_command(update, context):
         "- تحميل الصوت فقط (MP3)\n"
         "- اكتشاف تلقائي للمنصة\n"
         "- واجهة سهلة الاستخدام\n\n"
-        "حدود الحجم:\n"
-        f"- فيديو: حتى {MAX_VIDEO_MB} ميجابايت\n"
-"
-        "ملاحظة:\n"
-        "- بعض المنصات قد يكون فيها قيود"
-
-     )
+        f"حدود الحجم:\n- فيديو: حتى {MAX_VIDEO_MB} ميجابايت\n- صوت: حتى {MAX_AUDIO_MB} ميجابايت\n\n"
+        "ملاحظة: بعض المنصات قد يكون فيها قيود"
+    )
 
 async def buttons(update, context):
     query = update.callback_query
@@ -454,8 +438,7 @@ async def buttons(update, context):
             await query.message.reply_text("هذا الخيار خاص بالمطور فقط.")
             return
 
-        admi
-noard = [
+        admin_keyboard = [
             [InlineKeyboardButton("الاحصائيات", callback_data="admin_stats")],
             [InlineKeyboardButton("المستخدمين", callback_data="admin_users")],
             [InlineKeyboardButton("تصدير البيانات", callback_data="admin_export")],
@@ -475,15 +458,12 @@ noard = [
         await users_callback(query.message, context)
 
     elif query.data == "admin_export":
-        await export_callback(query.message, context)
-
-async def handle_link(update, context):
-    user_id = update.effective_user.id
+        await export_callback(
+q= update.effective_user.id
     text = (update.message.text or "").strip()
 
     if not text.startswith(("http://", "https://")):
-
-         await update.message.reply_text(
+        await update.message.reply_text(
             "الرجاء ارسال رابط صحيح يبدأ بـ http:// او https://",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
@@ -509,8 +489,9 @@ async def handle_link(update, context):
 
     checking_msg = await update.message.reply_text("جاري فحص الجودات المتاحة...")
 
-    options = get_available_
-q   await checking_msg.edit_text(
+    options = get_available_qualities(text)
+    if not options:
+        await checking_msg.edit_text(
             "ما قدرت اوصل للفيديو\nتأكد من:\n- الرابط صحيح\n- المحتوى غير محمي او خاص\n- المنصة مدعومة",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
@@ -539,8 +520,7 @@ async def quality_chosen(query, context, user_id):
     if not pending:
         await query.message.edit_text(
             "انتهت صلاحية هذا الطلب\nالرجاء ارسال الرابط من جديد",
-
-             reply_markup=InlineKeyboardMarkup([
+            reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
             ])
         )
@@ -555,9 +535,8 @@ async def quality_chosen(query, context, user_id):
 
     url = pending["url"]
     audio_only = option.get("audio_only", False)
-    format_spec = option.get("format", "best[ext=mp4]/best")
-
-    await query.message.delete()
+    form
+a.delete()
     
     status_msg = await query.message.reply_text("جاري التحميل...\n\nالرجاء الانتظار...")
     
@@ -570,15 +549,14 @@ async def quality_chosen(query, context, user_id):
             await status_msg.edit_text(
                 "ما قدرت احمل بهذي الجودة\nجرب جودة اخرى او تأكد من الرابط",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("جودة اخرى", cal
-lKeyboardButton("رجوع للقائمة", callback_data="home")]
+                    [InlineKeyboardButton("جودة اخرى", callback_data="home")],
+                    [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
                 ])
             )
             return
 
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
         
-        # تحديد الحد حسب نوع الملف
         if audio_only:
             max_limit = MAX_AUDIO_MB
             file_type = "صوت"
@@ -588,10 +566,7 @@ lKeyboardButton("رجوع للقائمة", callback_data="home")]
         
         if size_mb > max_limit:
             await status_msg.edit_text(
-                f"حجم الملف كبير جداً\n"
-                f"الحجم: {size_mb:.1f} MB\n"
-                f"الحد الاقصى لـ {file_type}: {max_limit} MB\n\n"
-                f"جرب جودة اقل",
+                f"حجم الملف كبير جداً\nالحجم: {size_mb:.1f} MB\nالحد الاقصى لـ {file_type}: {max_limit} MB\n\nجرب جودة اقل",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("جودة اخرى", callback_data="home")],
                     [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
@@ -601,60 +576,50 @@ lKeyboardButton("رجوع للقائمة", callback_data="home")]
 
         await status_msg.edit_text(f"تم التحميل ({size_mb:.1f} MB)، جاري الارسال...")
         
-        # إرسال الملف
         with open(file_path, "rb") as file:
             if audio_only:
-                # إرسال الصوت كملف صوتي
-
-                 await context.bot.send_audio(
+                await context.bot.send_audio(
                     chat_id=query.message.chat_id,
                     audio=file,
                     title=f"صوت من {PLATFORMS.get(user_selected_platform.get(user_id, 'رابط'), '')}",
                     performer="تم التحميل بواسطة البوت",
-                    duration=0  # سيتم كشف المدة تلقائياً
+                    duration=0
                 )
             else:
-                # إرسال الفيديو كملف (يدعم حتى 2 جيجابايت)
-                # استخدم send_document لتجاوز حد 50 ميجا
                 await context.bot.send_document(
                     chat_id=query.message.chat_id,
                     document=file,
                     filename=os.path.basename(file_path),
-                    caption=f"✅ تم التحميل بنجاح!\n"
-                            f"📦 الحجم: {size_mb:.1f} MB\n"
-                            f"📎 للرجوع للقائمة استخدم /start"
+                    caption=f"تم التحميل بنجاح!\nالحجم: {size_mb:.1f} MB\nللعودة للقائمة استخدم /start"
                 )
         
         await status_msg.delete()
         
         await query.message.reply_text(
-            "✅ تم الارسال بنجاح!\n\n"
-            "📌 اختر منصة جديدة او ارسل رابط اخر",
+            "تم الارسال بنجاح!\n\nاختر منصة جديدة او ارسل رابط اخر",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboar
-dhome")]
+                [InlineKeyboardButton("القائمة الرئيسية", callback_data="home")]
             ])
         )
 
     except Exception as e:
         logging.error(f"خطأ اثناء المعالجة: {e}")
         await status_msg.edit_text(
-            f"❌ صار خطأ: {str(e)[:200]}\n\nجرب من جديد او اختر جودة اخرى",
+            f"صار خطأ: {str(e)[:200]}\n\nجرب من جديد او اختر جودة اخرى",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
             ])
         )
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-        user_pending_link.pop(user_id, None)
+        u
+sng_link.pop(user_id, None)
 
-# ===== تسجيل الأوامر =====
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("help", help_command))
 application.add_handler(CallbackQueryHandler(buttons))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-# ===== تشغيل البوت =====
 def main():
     save_thread = threading.Thread(target=auto_save, daemon=True)
     save_thread.start()
@@ -671,11 +636,11 @@ def main():
     cleanup = threading.Thread(target=cleanup_thread, daemon=True)
     cleanup.start()
     
-    print("🚀 البوت شغال...")
-    print(f"👤 معرف الادمن: {ADMIN_ID}")
-    print(f"📊 عدد المنصات المدعومة: {len(PLATFORMS)}")
-    print(f"📹 حد الفيديو: {MAX_VIDEO_MB} MB")
-    print(f"🎵 حد الصوت: {MAX_AUDIO_MB} MB")
+    print("البوت شغال...")
+    print(f"معرف الادمن: {ADMIN_ID}")
+    print(f"عدد المنصات المدعومة: {len(PLATFORMS)}")
+    print(f"حد الفيديو: {MAX_VIDEO_MB} MB")
+    print(f"حد الصوت: {MAX_AUDIO_MB} MB")
     
     application.run_polling()
 

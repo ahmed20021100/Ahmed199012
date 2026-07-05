@@ -1,44 +1,20 @@
-import os
 import logging
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes, filters
+from datetime import datetime, timedelta
+import json
+import os
 import tempfile
 import shutil
-from pathlib import Path
-
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
 
 import yt_dlp
 
-# ---------------------------------------------------------------------------
-# إعدادات عامة
-# ---------------------------------------------------------------------------
+TOKEN = os.getenv("BOT_TOKEN")  # ياخذ التوكن من الإعدادات
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
-logger = logging.getLogger(__name__)
+# ===== معرف الأدمن =====
+ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
-# التوكن يُقرأ من متغير البيئة فقط - لا تكتبه هنا أبداً
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-
-if not BOT_TOKEN:
-    raise RuntimeError(
-        "لم يتم العثور على BOT_TOKEN في متغيرات البيئة. "
-        "أضفه من إعدادات Railway (Variables) أو ملف .env محلياً."
-    )
-
-# حد أقصى لحجم الفيديو الذي يرسله تيليجرام (بالميجابايت) للبوتات العادية
-MAX_TELEGRAM_MB = 50
-
-# قائمة المنصات (10 منصات + خيار عام رقم 11)
+# ===== المنصات المدعومة =====
 PLATFORMS = {
     "youtube": "▶️ يوتيوب (YouTube)",
     "tiktok": "🎵 تيك توك (TikTok)",
@@ -53,42 +29,228 @@ PLATFORMS = {
     "other": "🌐 رابط آخر (أي موقع / Google Chrome)",
 }
 
-# نتذكر أي منصة اختار كل مستخدم مؤقتاً (بالذاكرة، بسيط بدون قاعدة بيانات)
-user_selected_platform: dict[int, str] = {}
+MAX_TELEGRAM_MB = 50
 
+# ===== بيانات المستخدمين =====
+user_data = {}
+user_activity = {}
+command_usage = {}
+user_selected_platform = {}
 
-# ---------------------------------------------------------------------------
-# أوامر البوت
-# ---------------------------------------------------------------------------
+# ===== تحميل البيانات =====
+def load_data():
+    global user_data, user_activity, command_usage
+    try:
+        with open('user_data.json', 'r') as f:
+            user_data = json.load(f)
+    except:
+        user_data = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        with open('user_activity.json', 'r') as f:
+            user_activity = json.load(f)
+    except:
+        user_activity = {}
+
+    try:
+        with open('command_usage.json', 'r') as f:
+            command_usage = json.load(f)
+    except:
+        command_usage = {}
+
+def save_data():
+    with open('user_data.json', 'w') as f:
+        json.dump(user_data, f)
+    with open('user_activity.json', 'w') as f:
+        json.dump(user_activity, f)
+    with open('command_usage.json', 'w') as f:
+        json.dump(command_usage, f)
+
+load_data()
+
+logging.basicConfig(level=logging.INFO)
+
+# ===== Application =====
+application = Application.builder().token(TOKEN).build()
+
+# ===== دوال مساعدة =====
+def log_user_activity(user_id, command):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_activity[str(user_id)] = now
+    if command not in command_usage:
+        command_usage[command] = 0
+    command_usage[command] += 1
+    save_data()
+
+def get_platforms_keyboard():
     keyboard = [
         [InlineKeyboardButton(label, callback_data=key)]
         for key, label in PLATFORMS.items()
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    return InlineKeyboardMarkup(keyboard)
+
+def download_video(url: str, output_dir: str):
+    """يحمل الفيديو عبر yt-dlp ويرجع مسار الملف أو None لو فشل."""
+    output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": "best[ext=mp4]/best",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+    }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
+            if os.path.exists(filename):
+                return filename
+    except Exception as e:
+        logging.error(f"خطأ في تحميل الفيديو: {e}")
+    return None
+
+# ===== دوال البوت =====
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    user_id = user.id
+
+    if str(user_id) not in user_data:
+        user_data[str(user_id)] = {
+            'first_name': user.first_name,
+            'last_name': user.last_name or '',
+            'username': user.username or '',
+            'user_id': user_id,
+            'added_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'is_bot': user.is_bot,
+            'language_code': user.language_code or ''
+        }
+        save_data()
+
+    log_user_activity(str(user_id), "/start")
+
     await update.message.reply_text(
-        "أهلاً بيك! اختر المنصة الي تريد تحمل منها الفيديو:",
-        reply_markup=reply_markup,
+        "أهلاً بيك! 🎬\n\n"
+        "اختر المنصة الي تريد تحمل منها الفيديو:",
+        reply_markup=get_platforms_keyboard()
     )
 
+async def start_callback(query, context):
+    await query.message.edit_text(
+        "🏠 اختر المنصة:",
+        reply_markup=get_platforms_keyboard()
+    )
 
-async def platform_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def stats_callback(message, context):
+    total_users = len(user_data)
+
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    week_ago = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+    month_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+
+    active_today = sum(1 for u in user_activity.values() if u.startswith(today))
+    active_week = sum(1 for u in user_activity.values() if u >= week_ago)
+    active_month = sum(1 for u in user_activity.values() if u >= month_ago)
+
+    stats_text = f"📊 **إحصائيات البوت**\n\n"
+    stats_text += f"👥 **إجمالي المستخدمين:** {total_users}\n"
+    stats_text += f"🟢 **نشط اليوم:** {active_today}\n"
+    stats_text += f"🟡 **نشط الأسبوع:** {active_week}\n"
+    stats_text += f"🟠 **نشط الشهر:** {active_month}\n\n"
+
+    sorted_commands = sorted(command_usage.items(), key=lambda x: x[1], reverse=True)[:5]
+    stats_text += "📌 **المنصات الأكثر استخداماً:**\n"
+    for cmd, count in sorted_commands:
+        stats_text += f"`{cmd}`: {count} مرة\n"
+
+    await message.reply_text(stats_text)
+
+async def users_callback(message, context):
+    users_list = list(user_data.values())
+    users_list.reverse()
+    users_list = users_list[:10]
+
+    text = "👥 **آخر 10 مستخدمين:**\n\n"
+    for i, user in enumerate(users_list, 1):
+        name = user.get('first_name', 'غير معروف')
+        username = user.get('username', '')
+        added = user.get('added_date', '')
+        user_id_display = user.get('user_id', '')
+
+        text += f"{i}. **{name}**\n"
+        if username:
+            text += f"   🆔 @{username}\n"
+        text += f"   📅 {added}\n"
+        text += f"   🆔 {user_id_display}\n\n"
+
+    await message.reply_text(text)
+
+async def export_callback(message, context):
+    data = {
+        'users': user_data,
+        'activity': user_activity,
+        'commands': command_usage,
+        'export_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'total_users': len(user_data)
+    }
+
+    with open('export_data.json', 'w') as f:
+        json.dump(data, f, indent=2)
+
+    await context.bot.send_document(
+        chat_id=message.chat.id,
+        document=open('export_data.json', 'rb'),
+        filename=f'users_export_{datetime.now().strftime("%Y%m%d")}.json',
+        caption="📊 **تصدير بيانات المستخدمين**"
+    )
+
+    os.remove('export_data.json')
+
+async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = int(query.from_user.id)
     await query.answer()
 
-    platform_key = query.data
-    user_id = query.from_user.id
-    user_selected_platform[user_id] = platform_key
+    log_user_activity(user_id, query.data)
 
-    label = PLATFORMS.get(platform_key, "هذه المنصة")
-    await query.edit_message_text(
-        f"تمام، اخترت: {label}\n\n"
-        "الحين ابعثلي رابط الفيديو وراح أسحبه لك."
-    )
+    if query.data in PLATFORMS:
+        user_selected_platform[user_id] = query.data
+        label = PLATFORMS[query.data]
+        await query.message.edit_text(
+            f"تمام، اخترت: {label}\n\n"
+            "الحين ابعثلي رابط الفيديو وراح أسحبه لك."
+        )
 
+    elif query.data == "home":
+        await start_callback(query, context)
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    elif query.data == "admin_panel":
+        if user_id != ADMIN_ID:
+            await query.message.reply_text("⛔ هذا الخيار خاص بالمطور فقط.")
+            return
+
+        admin_keyboard = [
+            [InlineKeyboardButton("📊 الإحصائيات", callback_data="admin_stats")],
+            [InlineKeyboardButton("👥 المستخدمين", callback_data="admin_users")],
+            [InlineKeyboardButton("📥 تصدير البيانات", callback_data="admin_export")],
+            [InlineKeyboardButton("🔙 رجوع", callback_data="home")]
+        ]
+
+        await query.message.edit_text(
+            "⚙️ **لوحة التحكم**\n\nاختر أحد الخيارات:",
+            reply_markup=InlineKeyboardMarkup(admin_keyboard)
+        )
+
+    elif query.data == "admin_stats":
+        await stats_callback(query.message, context)
+
+    elif query.data == "admin_users":
+        await users_callback(query.message, context)
+
+    elif query.data == "admin_export":
+        await export_callback(query.message, context)
+
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = (update.message.text or "").strip()
 
@@ -96,17 +258,23 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_text("ابعث رابط صحيح يبدأ بـ http أو https 🙏")
         return
 
-    platform = user_selected_platform.get(user_id, "other")
-    status_msg = await update.message.reply_text("⏳ جاري تحميل الفيديو...")
+    if user_id not in user_selected_platform:
+        await update.message.reply_text(
+            "اختر منصة أول من القائمة:",
+            reply_markup=get_platforms_keyboard()
+        )
+        return
 
+    status_msg = await update.message.reply_text("⏳ جاري تحميل الفيديو...")
     tmp_dir = tempfile.mkdtemp(prefix="vid_")
+
     try:
         file_path = download_video(text, tmp_dir)
 
         if file_path is None:
             await status_msg.edit_text(
                 "ما قدرت أحمل الفيديو 😕\n"
-                "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي بحساب مغلق."
+                "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي."
             )
             return
 
@@ -114,7 +282,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if size_mb > MAX_TELEGRAM_MB:
             await status_msg.edit_text(
                 f"الفيديو حجمه {size_mb:.1f} MB وهذا أكبر من حد تيليجرام "
-                f"للبوتات العادية ({MAX_TELEGRAM_MB} MB). جرب رابط بجودة أقل."
+                f"({MAX_TELEGRAM_MB} MB). جرب رابط بجودة أقل."
             )
             return
 
@@ -123,58 +291,21 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_video(video=video_file)
         await status_msg.delete()
 
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("خطأ أثناء تحميل الفيديو")
-        await status_msg.edit_text(f"صار خطأ: {exc}")
+    except Exception as e:
+        logging.error(f"خطأ أثناء المعالجة: {e}")
+        await status_msg.edit_text(f"صار خطأ: {e}")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
+# ===== تسجيل الأوامر =====
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(buttons))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
-# ---------------------------------------------------------------------------
-# منطق التحميل عبر yt-dlp
-# ---------------------------------------------------------------------------
-
-def download_video(url: str, output_dir: str) -> str | None:
-    """
-    يحمل الفيديو من الرابط المعطى باستخدام yt-dlp ويرجع مسار الملف.
-    yt-dlp يدعم تلقائياً أغلب المنصات (يوتيوب، تيك توك، تويتر، فيسبوك،
-    ريديت، بينتريست، فيميو ...). انستغرام وسناب شات أحياناً يحتاجون
-    كوكيز حساب مسجّل دخول للمحتوى الخاص - راجع تعليمات yt-dlp للكوكيز
-    إذا واجهت مشاكل بمحتوى معين.
-    """
-    output_template = str(Path(output_dir) / "%(id)s.%(ext)s")
-
-    ydl_opts = {
-        "outtmpl": output_template,
-        "format": "best[ext=mp4]/best",
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "max_filesize": MAX_TELEGRAM_MB * 1024 * 1024 * 2,  # هامش قبل الفحص اليدوي
-    }
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        filename = ydl.prepare_filename(info)
-        if os.path.exists(filename):
-            return filename
-        return None
-
-
-# ---------------------------------------------------------------------------
-# نقطة التشغيل
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(platform_chosen))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
-
-    logger.info("البوت شغال...")
+# ===== تشغيل البوت =====
+def main():
+    print("🚀 البوت شغال...")
     application.run_polling()
-
 
 if __name__ == "__main__":
     main()

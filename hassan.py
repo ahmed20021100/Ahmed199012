@@ -14,6 +14,10 @@ TOKEN = os.getenv("BOT_TOKEN")  # ياخذ التوكن من الإعدادات
 # ===== معرف الأدمن =====
 ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
+# ===== إعدادات الفيديو =====
+MAX_TELEGRAM_MB = 50  # حد أقصى لحجم الملف بالميجابايت (تيليجرام الحد الأقصى 2GB)
+DEFAULT_FORMAT = "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"  # جودة افتراضية
+
 # ===== المنصات المدعومة =====
 PLATFORMS = {
     "tiktok": "🎵 تيك توك (TikTok)",
@@ -27,8 +31,6 @@ PLATFORMS = {
     "likee": "💫 لايكي (Likee)",
     "other": "🌐 رابط آخر (أي موقع / Google Chrome)",
 }
-
-MAX_TELEGRAM_MB = 50
 
 # ===== بيانات المستخدمين =====
 user_data = {}
@@ -158,6 +160,15 @@ def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/
         logging.error(f"خطأ في تحميل الفيديو: {e}")
     return None
 
+def check_file_size(file_path: str) -> tuple[bool, float]:
+    """
+    يفحص حجم الملف ويقارنه مع الحد الأقصى.
+    يرجع: (صحيح/خطأ, حجم بالميجابايت)
+    """
+    size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    is_valid = size_mb <= MAX_TELEGRAM_MB
+    return is_valid, size_mb
+
 # ===== دوال البوت =====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -285,6 +296,7 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📊 الإحصائيات", callback_data="admin_stats")],
             [InlineKeyboardButton("👥 المستخدمين", callback_data="admin_users")],
             [InlineKeyboardButton("📥 تصدير البيانات", callback_data="admin_export")],
+            [InlineKeyboardButton("⚙️ الإعدادات", callback_data="admin_settings")],
             [InlineKeyboardButton("🔙 رجوع", callback_data="home")]
         ]
 
@@ -301,6 +313,15 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "admin_export":
         await export_callback(query.message, context)
+
+    elif query.data == "admin_settings":
+        settings_text = (
+            "⚙️ **إعدادات البوت الحالية**\n\n"
+            f"📦 **حد أقصى لحجم الملف:** {MAX_TELEGRAM_MB} MB\n"
+            f"🎬 **الجودة الافتراضية:** 720p\n\n"
+            "_لتغيير الإعدادات، عدّل المتغيرات في أول الكود_"
+        )
+        await query.message.reply_text(settings_text)
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -334,7 +355,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, opt in enumerate(options)
     ]
     await checking_msg.edit_text(
-        "اختر الجودة الي تريدها:",
+        f"اختر الجودة الي تريدها:\n\n⚠️ _الحد الأقصى المسموح: {MAX_TELEGRAM_MB} MB_",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -367,11 +388,13 @@ async def quality_chosen(query, context, user_id):
             )
             return
 
-        size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        if size_mb > MAX_TELEGRAM_MB:
+        # فحص حجم الملف
+        is_valid, size_mb = check_file_size(file_path)
+        if not is_valid:
             await status_msg.edit_text(
-                f"حجم الملف {size_mb:.1f} MB وهذا أكبر من حد تيليجرام "
-                f"({MAX_TELEGRAM_MB} MB). جرب جودة أقل."
+                f"❌ حجم الملف {size_mb:.1f} MB\n\n"
+                f"الحد الأقصى المسموح: {MAX_TELEGRAM_MB} MB\n\n"
+                "جرب جودة أقل أو فيديو أقصر ⬇️"
             )
             return
 

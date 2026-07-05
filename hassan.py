@@ -41,7 +41,8 @@ user_pending_link = {}
 user_queues = {}
 
 WELCOME_MESSAGES = [
-    "اهلاً بك! جاهز لتحميل فيديوهاتك؟",
+
+     "اهلاً بك! جاهز لتحميل فيديوهاتك؟",
     "مرحباً! اختر المنصة وابعث الرابط",
     "اهلاً! انا هنا لأساعدك في تحميل الفيديوهات",
     "مرحباً! جرب البوت الآن واحصل على فيديوهاتك بجودة عالية",
@@ -171,7 +172,8 @@ def get_available_qualities(url):
     has_video_only = False
     qualities = []
     
-    for f in formats:
+
+     for f in formats:
         height = f.get("height")
         vcodec = f.get("vcodec")
         acodec = f.get("acodec")
@@ -209,7 +211,8 @@ def get_available_qualities(url):
  {h}p"
         
         options.append({
-            "label": label,
+
+             "label": label,
             "format": f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h}]",
             "audio_only": False
         })
@@ -283,7 +286,8 @@ def download_video
                 filename = os.path.splitext(filename)[0] + ".mp3"
             
             if os.path.exists(filename) and os.path.getsize(filename) > 0:
-                return filename
+
+                 return filename
     except Exception as e:
         logging.error(f"خطأ في التحميل: {e}")
     return None
@@ -349,7 +353,8 @@ async def stats_callback(message, context):
 async def users_callback(message, context):
     users_list = list(user_data.values())
     users_list.reverse()
-    users_list = users_list[:10]
+
+     users_list = users_list[:10]
 
     text = "اخر 10 مستخدمين:\n\n"
     for i, user in enumerate(users_list, 1):
@@ -423,7 +428,8 @@ async def buttons(update, context):
         await query.message.reply_text(
             f"تم اختيار: {label}\n\nالان ارسل رابط الفيديو المطلوب تحميله:",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
+
+                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
             ])
         )
 
@@ -494,7 +500,8 @@ q= update.effective_user.id
         await checking_msg.edit_text(
             "ما قدرت اوصل للفيديو\nتأكد من:\n- الرابط صحيح\n- المحتوى غير محمي او خاص\n- المنصة مدعومة",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
+
+                 [InlineKeyboardButton("رجوع للقائمة", callback_data="home")]
             ])
         )
         return
@@ -575,7 +582,8 @@ a.delete()
             return
 
         await status_msg.edit_text(f"تم التحميل ({size_mb:.1f} MB)، جاري الارسال...")
-        
+
+         
         with open(file_path, "rb") as file:
             if audio_only:
                 await context.bot.send_audio(

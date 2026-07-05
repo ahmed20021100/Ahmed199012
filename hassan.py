@@ -11,20 +11,21 @@ import yt_dlp
 
 TOKEN = os.getenv("BOT_TOKEN")  # ياخذ التوكن من الإعدادات
 
+
+ 
 # ===== معرف الأدمن =====
 ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
 # ===== المنصات المدعومة =====
 PLATFORMS = {
-    "youtube": "▶️ يوتيوب (YouTube)",
     "tiktok": "🎵 تيك توك (TikTok)",
     "instagram": "📸 انستغرام (Instagram)",
     "twitter": "🐦 تويتر / X",
     "facebook": "📘 فيسبوك (Facebook)",
     "reddit": "👽 ريديت (Reddit)",
     "pinterest": "📌 بينتريست (Pinterest)",
-    "snapchat": "👻 سناب شات (Snapchat)",
-    "vimeo": "🎬 فيميو (Vimeo)",
+    "snapchat": "👻 سناب
+ eo": "🎬 فيميو (Vimeo)",
     "likee": "💫 لايكي (Likee)",
     "other": "🌐 رابط آخر (أي موقع / Google Chrome)",
 }
@@ -36,10 +37,13 @@ user_data = {}
 user_activity = {}
 command_usage = {}
 user_selected_platform = {}
+user_pending_link = {}  # user_id -> الرابط الي ينتظر اختيار جودة له
 
 # ===== تحميل البيانات =====
 def load_data():
     global user_data, user_activity, command_usage
+
+ 
     try:
         with open('user_data.json', 'r') as f:
             user_data = json.load(f)
@@ -58,7 +62,8 @@ def load_data():
     except:
         command_usage = {}
 
-def save_data():
+def sa
+v:
     with open('user_data.json', 'w') as f:
         json.dump(user_data, f)
     with open('user_activity.json', 'w') as f:
@@ -75,6 +80,8 @@ application = Application.builder().token(TOKEN).build()
 
 # ===== دوال مساعدة =====
 def log_user_activity(user_id, command):
+
+ 
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     user_activity[str(user_id)] = now
     if command not in command_usage:
@@ -89,24 +96,79 @@ def get_platforms_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def download_video(url: str, output_dir: str):
-    """يحمل الفيديو عبر yt-dlp ويرجع مسار الملف أو None لو فشل."""
-    output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
+def get_available_qualities(url: str):
+(بدون تحميل).
+    كل عنصر: {"label": نص للزر, "format": صيغة yt-dlp للتحميل}
+
+ 
+    """
     ydl_opts = {
-        "outtmpl": output_template,
-        "format": "best[ext=mp4]/best",
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "skip_download": True,
     }
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except Exception as e:
+        logging.error(f"خطأ في فحص الجودات: {e}")
+        return None
+
+    formats = info.get("formats") or []
+
+    # نجمع الارتفاعات (heights) المتوفرة لفيديو فيه صوت وصورة معاً
+    heights = set()
+    has_audio_only = False
+    for f in form
+a     if f.get("vcodec") not in (None, "none") and f.get("height"):
+            heights.add(int(f["height"]))
+        if f.get("vcodec") in (None, "none") and f.get("acodec") not in (None, "none"):
+            has_audio_only = True
+
+    options = [{"label": "⭐ أفضل جودة متاحة", "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
+
+    for h in sorted(heights, reverse=True)[:4]:
+        options.append({
+            "label": f"🎞️ {h}p",
+            "format": f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h}]",
+
+ 
+        })
+
+    if has_audio_only:
+        options.append({"label": "🎧 صوت فقط (MP3)", "format": "bestaudio/best", "audio_only": True})
+
+    return options
+
+def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/best", audio_only: bool = False):
+    """يحمل الفيديو/الصوت عبر yt-dlp حسب الصيغة المطلوبة ويرجع مسار الملف أو None لو فشل."""
+    output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": format_spec,
+        "quiet": True,
+        "no_war
+ne,
+        "noplaylist": True,
+    }
+    if audio_only:
+        ydl_opts["postprocessors"] = [{
+            "key": "FFmpegExtractAudio",
+            "preferredcodec": "mp3",
+        }]
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
+            if audio_only:
+                filename = os.path.splitext(filename)[0] + ".mp3"
             if os.path.exists(filename):
                 return filename
     except Exception as e:
         logging.error(f"خطأ في تحميل الفيديو: {e}")
+
+ 
     return None
 
 # ===== دوال البوت =====
@@ -124,9 +186,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'is_bot': user.is_bot,
             'language_code': user.language_code or ''
         }
-        save_data()
-
-    log_user_activity(str(user_id), "/start")
+        sav
+eg_user_activity(str(user_id), "/start")
 
     await update.message.reply_text(
         "أهلاً بيك! 🎬\n\n"
@@ -159,7 +220,8 @@ async def stats_callback(message, context):
     stats_text += f"🟠 **نشط الشهر:** {active_month}\n\n"
 
     sorted_commands = sorted(command_usage.items(), key=lambda x: x[1], reverse=True)[:5]
-    stats_text += "📌 **المنصات الأكثر استخداماً:**\n"
+    stats_text += "📌 **المنص
+ات الأكثر استخداماً:**\n"
     for cmd, count in sorted_commands:
         stats_text += f"`{cmd}`: {count} مرة\n"
 
@@ -180,6 +242,8 @@ async def users_callback(message, context):
         text += f"{i}. **{name}**\n"
         if username:
             text += f"   🆔 @{username}\n"
+
+ 
         text += f"   📅 {added}\n"
         text += f"   🆔 {user_id_display}\n\n"
 
@@ -201,7 +265,8 @@ async def export_callback(message, context):
         chat_id=message.chat.id,
         document=open('export_data.json', 'rb'),
         filename=f'users_export_{datetime.now().strftime("%Y%m%d")}.json',
-        caption="📊 **تصدير بيانات المستخدمين**"
+        ca
+p**"
     )
 
     os.remove('export_data.json')
@@ -216,15 +281,20 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data in PLATFORMS:
         user_selected_platform[user_id] = query.data
         label = PLATFORMS[query.data]
-        await query.message.edit_text(
+        await query.message.reply_text(
             f"تمام، اخترت: {label}\n\n"
             "الحين ابعثلي رابط الفيديو وراح أسحبه لك."
         )
+
+    elif query.data.startswith("q_"):
+        await quality_chosen(query, context, user_id)
 
     elif query.data == "home":
         await start_callback(query, context)
 
     elif query.data == "admin_panel":
+
+ 
         if user_id != ADMIN_ID:
             await query.message.reply_text("⛔ هذا الخيار خاص بالمطور فقط.")
             return
@@ -242,9 +312,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "admin_stats":
-        await stats_callback(query.message, context)
-
-    elif query.data == "admin_users":
+        await stats_callback(query.message, c
+o"admin_users":
         await users_callback(query.message, context)
 
     elif query.data == "admin_export":
@@ -265,30 +334,76 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    status_msg = await update.message.reply_text("⏳ جاري تحميل الفيديو...")
+    checking_msg = await update.message.reply_text("🔎 جاري فحص الجودات المتاحة...")
+
+    options = get_available_qualities(text)
+
+ 
+    if not options:
+        await checking_msg.edit_text(
+            "ما قدرت أوصل للفيديو 😕\n"
+            "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي."
+        )
+        return
+
+    user_pending_link[user_id] = {"url": text, "options": options}
+
+    keyboard = [
+        [InlineKeyboardButton(opt["label"], callback_data=f"q_{i}")]
+        for i, opt in enumerate(options)
+    ]
+    await checking_msg.edit_text(
+        "اختر الجودة الي تريدها:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def quality_chosen(query, context, user_id):
+    pending = user_pending_link.get(user_id)
+    if not pending:
+        await query.message.reply_text("انتهت صلاحية هذا الطلب، ابعث الرابط من جديد 🙏")
+        return
+
+    try:
+        idx = int(query.data.split("_", 1)[1])
+  
+ ng["options"][idx]
+    except (ValueError, IndexError):
+        await query.message.reply_text("خيار غير صحيح، جرب من جديد.")
+        return
+
+    url = pending["url"]
+    audio_only = option.get("audio_only", False)
+
+    status_msg = await query.message.reply_text("⏳ جاري التحميل...")
     tmp_dir = tempfile.mkdtemp(prefix="vid_")
 
     try:
-        file_path = download_video(text, tmp_dir)
+        file_path = download_video(url, tmp_dir, format_spec=option["format"], audio_only=audio_only)
 
         if file_path is None:
             await status_msg.edit_text(
-                "ما قدرت أحمل الفيديو 😕\n"
-                "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي."
+                "ما قدرت أحمل بهذي الجودة 😕\n"
+                "جرب جودة ثانية أو تأكد من الرابط."
             )
             return
 
         size_mb = os.path.getsize(file_path) / (1024 * 1024)
         if size_mb > MAX_TELEGRAM_MB:
             await status_msg.edit_text(
-                f"الفيديو حجمه {size_mb:.1f} MB وهذا أكبر من حد تيليجرام "
-                f"({MAX_TELEGRAM_MB} MB). جرب رابط بجودة أقل."
+                f"حجم الملف {size_mb:.1f} MB وهذا أكبر من حد تيليجرام "
+
+ 
+                f"({MAX_TELEGRAM_MB} MB). جرب جودة أقل."
             )
             return
 
         await status_msg.edit_text("✅ تم التحميل، جاري الإرسال...")
-        with open(file_path, "rb") as video_file:
-            await update.message.reply_video(video=video_file)
+        if audio_only:
+            with open(file_path, "rb") as audio_file:
+                await context.bot.send_audio(chat_id=query.message.chat_id, audio=audio_file)
+        else:
+            with open(file_path, "rb") as video_file:
+                await context.bot.send_video(chat_id=query.message.chat_id, video=video_file)
         await status_msg.delete()
 
     except Exception as e:
@@ -296,11 +411,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await status_msg.edit_text(f"صار خطأ: {e}")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+        user_pending_link.pop(user_id, None)
 
 # ===== تسجيل الأوامر =====
 application.add_handler(CommandHandler("start", start))
-application.add_handler(CallbackQueryHandler(buttons))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+applicatio
+nadd_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
 # ===== تشغيل البوت =====
 def main():

@@ -1,127 +1,180 @@
 import os
 import logging
-import re
+import tempfile
+import shutil
+from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+import yt_dlp
+
+# ---------------------------------------------------------------------------
+# إعدادات عامة
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
 logger = logging.getLogger(__name__)
 
-HASSAN_7 = os.environ.get("HASSAN_7")
+# التوكن يُقرأ من متغير البيئة فقط - لا تكتبه هنا أبداً
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
-if not HASSAN_7:
-    logger.error("HASSAN_7 غير موجود")
-    exit(1)
+if not BOT_TOKEN:
+    raise RuntimeError(
+        "لم يتم العثور على BOT_TOKEN في متغيرات البيئة. "
+        "أضفه من إعدادات Railway (Variables) أو ملف .env محلياً."
+    )
 
-try:
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, filters
-    logger.info("تم تحميل المكتبات")
-except Exception as e:
-    logger.error(f"خطأ في التحميل: {e}")
-    exit(1)
+# حد أقصى لحجم الفيديو الذي يرسله تيليجرام (بالميجابايت) للبوتات العادية
+MAX_TELEGRAM_MB = 50
 
-
- # المنصات
+# قائمة المنصات (10 منصات + خيار عام رقم 11)
 PLATFORMS = {
-    "youtube": "YouTube",
-    "tiktok": "TikTok",
-    "instagram": "Instagram",
-    "facebook": "Facebook",
-    "twitter": "Twitter",
-    "reddit": "Reddit",
-    "pinterest": "Pinterest",
-    "vimeo": "Vimeo",
-    "dailymotion": "Dailymotion",
-    "twitch": "Twitch",
-    "google": "اي رابط"
+    "youtube": "▶️ يوتيوب (YouTube)",
+    "tiktok": "🎵 تيك توك (TikTok)",
+    "instagram": "📸 انستغرام (Instagram)",
+    "twitter": "🐦 تويتر / X",
+    "facebook": "📘 فيسبوك (Facebook)",
+    "reddit": "👽 ريديت (Reddit)",
+    "pinterest": "📌 بينتريست (Pinterest)",
+    "snapchat": "👻 سناب شات (Snapchat)",
+    "vimeo": "🎬 فيميو (Vimeo)",
+    "likee": "💫 لايكي (Likee)",
+    "other": "🌐 رابط آخر (أي موقع / Google Chrome)",
 }
 
-def get_buttons():
-    buttons = []
-    row = []
-    emojis = {
-        "youtube": "🎬", "tiktok": "🎵", "instagram": "📸",
-        "facebook": "📘", "twitter": "🐦", "reddit": "🤖",
-        "pintere
-s "vimeo": "🎥", "dailymotion": "🎞️",
-        "twitch": "🎮", "google": "🌐"
-    }
-    for key, name in PLATFORMS.items():
-        btn = InlineKeyboardButton(f"{emojis.get(key, '')} {name}", callback_data=f"p_{key}")
-        row.append(btn)
-        if len(row) == 2:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    return buttons
+# نتذكر أي منصة اختار كل مستخدم مؤقتاً (بالذاكرة، بسيط بدون قاعدة بيانات)
+user_selected_platform: dict[int, str] = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+# ---------------------------------------------------------------------------
+# أوامر البوت
+# ---------------------------------------------------------------------------
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyboard = [
+        [InlineKeyboardButton(label, callback_data=key)]
+        for key, label in PLATFORMS.items()
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(
-        "اختر المنصة:",
-        reply_markup=InlineKeyboardMarkup(get_buttons())
+        "أهلاً بيك! اختر المنصة الي تريد تحمل منها الفيديو:",
+        reply_markup=reply_markup,
+    )
 
-     )
 
-async def select_platform(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def platform_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    key = query.data.replace("p_", "")
-    context.user_data['platform'] = key
-    name = PLATFORMS.get(key, "")
+
+    platform_key = query.data
+    user_id = query.from_user.id
+    user_selected_platform[user_id] = platform_key
+
+    label = PLATFORMS.get(platform_key, "هذه المنصة")
     await query.edit_message_text(
-        f"تم اختيار: {name}\nارسل الرابط:",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("رجوع", callback_data="b")]])
+        f"تمام، اخترت: {label}\n\n"
+        "الحين ابعثلي رابط الفيديو وراح أسحبه لك."
     )
 
-async def go_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer(
-)context.user_data.pop('platform', None)
-    await query.edit_message_text(
-        "اختر المنصة:",
-        reply_markup=InlineKeyboardMarkup(get_buttons())
-    )
 
-def detect_platform(url):
-    patterns = {
-        "youtube": r'youtube\.com|youtu\.be',
-        "tiktok": r'tiktok\.com',
-        "instagram": r'instagram\.com',
-        "facebook": r'facebook\.com',
-        "twitter": r'twitter\.com|x\.com',
-        "reddit": r'reddit\.com',
-        "pinterest": r'pinterest\.com',
-        "vimeo": r'vimeo\.com',
-        "dailymotion": r'dailymotion\.com',
-        "twitch": r'twitch\.tv'
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    text = (update.message.text or "").strip()
 
-     }
-    for key, pattern in patterns.items():
-        if re.search(pattern, url, re.IGNORECASE):
-            return key
-    return "google"
-
-async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
-    platform = context.user_data.get('platform')
-    if not platform:
-        await update.message.reply_text("اختر المنصة اولا")
+    if not text.startswith("http"):
+        await update.message.reply_text("ابعث رابط صحيح يبدأ بـ http أو https 🙏")
         return
-    detected = detect_platform(url)
-    if detected != platform and platform != "google":
-        await update.message.reply_text(f"الرابط من {detected} وليس {platform}")
-        return
-    await u
-pmessage.reply_text(f"جاري تحميل الفيديو...")
 
-def main():
-    app = Application.builder().token(HASSAN_7).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(select_platform, pattern="^p_"))
-    app.add_handler(CallbackQueryHandler(go_back, pattern="^b$"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
-    logger.info("البوت جاهز")
-    app.run_polling()
+    platform = user_selected_platform.get(user_id, "other")
+    status_msg = await update.message.reply_text("⏳ جاري تحميل الفيديو...")
+
+    tmp_dir = tempfile.mkdtemp(prefix="vid_")
+    try:
+        file_path = download_video(text, tmp_dir)
+
+        if file_path is None:
+            await status_msg.edit_text(
+                "ما قدرت أحمل الفيديو 😕\n"
+                "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي بحساب مغلق."
+            )
+            return
+
+        size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        if size_mb > MAX_TELEGRAM_MB:
+            await status_msg.edit_text(
+                f"الفيديو حجمه {size_mb:.1f} MB وهذا أكبر من حد تيليجرام "
+                f"للبوتات العادية ({MAX_TELEGRAM_MB} MB). جرب رابط بجودة أقل."
+            )
+            return
+
+        await status_msg.edit_text("✅ تم التحميل، جاري الإرسال...")
+        with open(file_path, "rb") as video_file:
+            await update.message.reply_video(video=video_file)
+        await status_msg.delete()
+
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("خطأ أثناء تحميل الفيديو")
+        await status_msg.edit_text(f"صار خطأ: {exc}")
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
+# منطق التحميل عبر yt-dlp
+# ---------------------------------------------------------------------------
+
+def download_video(url: str, output_dir: str) -> str | None:
+    """
+    يحمل الفيديو من الرابط المعطى باستخدام yt-dlp ويرجع مسار الملف.
+    yt-dlp يدعم تلقائياً أغلب المنصات (يوتيوب، تيك توك، تويتر، فيسبوك،
+    ريديت، بينتريست، فيميو ...). انستغرام وسناب شات أحياناً يحتاجون
+    كوكيز حساب مسجّل دخول للمحتوى الخاص - راجع تعليمات yt-dlp للكوكيز
+    إذا واجهت مشاكل بمحتوى معين.
+    """
+    output_template = str(Path(output_dir) / "%(id)s.%(ext)s")
+
+    ydl_opts = {
+        "outtmpl": output_template,
+        "format": "best[ext=mp4]/best",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "max_filesize": MAX_TELEGRAM_MB * 1024 * 1024 * 2,  # هامش قبل الفحص اليدوي
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        if os.path.exists(filename):
+            return filename
+        return None
+
+
+# ---------------------------------------------------------------------------
+# نقطة التشغيل
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    application = Application.builder().token(BOT_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(platform_chosen))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+
+    logger.info("البوت شغال...")
+    application.run_polling()
+
 
 if __name__ == "__main__":
     main()

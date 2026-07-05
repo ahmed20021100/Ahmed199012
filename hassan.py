@@ -1,39 +1,44 @@
 import os
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, filters
 
 
- # ========== إعدادات التسجيل ==========
-logging.basicConfig(level=logging.INFO)
+# ========== إعدادات التس
+ج=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ========== توكن البوت ==========
+
 HASSAN_7 = os.environ.get("HASSAN_7")
 
-# ا
-لger.error("❌ HASSAN_7 غير موجود في المتغيرات البيئية!")
-    logger.info("📌 تأكد من إضافة المتغير HASSAN_7 في Railway Variables")
-    exit(1)
+if not HASSAN_7:
+    logger.error("❌ HASSAN_7 غير
+ t(1)
 
 logger.info("✅ تم تحميل التوكن بنجاح")
 
+try:
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+
+    from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, filters
+    logger.info("✅ تم تحم
+ي    logger.info("📌 تأكد من تثبيت python-telegram-bot")
+    exit(1)
+
 # ========== منصات التحميل ==========
 PLATFORMS = {
+    "youtube": {"name": "🎬 YouTube"},
+    "tiktok": {"name": "🎵 TikTok"},
+    "instagram": {"name": "📸 Instagram"},
 
-     "youtube": {"name": "🎬 YouTube", "emoji": "🎬"},
-    "tiktok": {"name": "🎵 TikTok", "emoji": "🎵"},
-    "instagram": {"name": "📸 Instagram", "emoji": "📸"},
-    "facebook": {"name": "📘 Facebook", "emoji": "📘"},
-    "twitter": 
-{ {"name": "🤖 Reddit", "emoji": "🤖"},
-    "pinterest": {"name": "📌 Pinterest", "emoji": "📌"},
-    "vimeo": {"name": "🎥 Vimeo", "emoji": "🎥"},
-    "dailymotion": {"name": "🎞️ Dailymotion", "emoji": "🎞️"},
-    "twitch": {"name": "🎮 Twitch", "emoji": "🎮"},
-    "google_chrome": {"name": "🌐 أي رابط", "emoji": "🌐"}
-
- }
+    "facebook": {"name": "📘 Facebook"},
+    "twitter": {"name": "🐦 Twitter/X"},
+    "reddit": {"name": "🤖 Reddit"},
+    "pinterest": {"name": "📌 Pinterest"},
+    "vimeo": {"name": "🎥 Vimeo"},
+    "dailymotion": {"name": "🎞️ Dailymotio
+n
+    "google_chrome": {"name": "🌐 أي رابط"}
+}
 
 # ========== إنشاء الأزرار ==========
 def get_platform_buttons():
@@ -43,10 +48,10 @@ def get_platform_buttons():
         row.append(InlineKeyboardButton(
             platform["name"],
             callback_data=f"platform_{key}"
+
         ))
         if len(row) == 2:
-            buttons.append(
-rw)
+            buttons.append(row)
             row = []
     if row:
         buttons.append(row)
@@ -56,23 +61,24 @@ rw)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         welcome = """
-🎬 **بوت تحميل الفيديوهات**
-
-اختر المنصة من الأزرار أدناه:
+🎬 **بوت تحميل الف
+ياختر المنصة من الأزرار أدناه:
 """
         keyboard = get_platform_buttons()
-
-         await update.message.reply_text(welcome, reply_markup=InlineKeyboardMarkup(keyboard))
+        await update.message.reply_text(welcome, reply_markup=InlineKeyboardMarkup(keyboard))
         logger.info(f"✅ تم إرسال القائمة للمستخدم {update.effective_user.id}")
     except Exception as e:
         logger.error(f"❌ خطأ في start: {e}")
 
 # ========== اختيار المنصة ==========
-async def platform_selection(update: Upd
-a   await query.answer()
+async def platform_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        query = update.callback_query
+        await query.answer()
         
         platform_key = query.data.replace("platform_", "")
-        platform_name = PLATFORMS.get(platform_key, {}).get("name", "غير معروف")
+        platform_name = PLATFORMS.get(platform_key, {}).
+get("name", "غير معروف")
         
         context.user_data['selected_platform'] = platform_key
         
@@ -81,7 +87,7 @@ a   await query.answer()
         keyboard = [[InlineKeyboardButton("🔙 عودة", callback_data="back")]]
         await query.edit_message_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
 
-         
+        
         logger.info(f"✅ المستخدم اختار: {platform_name}")
     except Exception as e:
         logger.error(f"❌ خطأ في platform_selection: {e}")
@@ -92,16 +98,18 @@ async def back(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
         
-        context.user_data.pop('selected_platform', None)
+        c
+oer_data.pop('selected_platform', None)
         
         welcome = "🎬 اختر المنصة التي تريد التحميل منها:"
-        keyboard = get_platform_b
-u        await query.edit_message_text(welcome, reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard = get_platform_buttons()
+        await query.edit_message_text(welcome, reply_markup=InlineKeyboardMarkup(keyboard))
     except Exception as e:
         logger.error(f"❌ خطأ في back: {e}")
 
 # ========== معالجة الروابط ==========
 async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     try:
         url = update.message.text.strip()
         selected = context.user_data.get('selected_platform')
@@ -109,13 +117,13 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not selected:
             keyboard = get_platform_buttons()
             await update.message.reply_text(
-
-                 "❌ الرجاء اختيار المنصة أولاً!",
+                "❌ الرجاء اختيار المنصة أولاً!",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
             return
         
-        platform_name = PLATFORMS.get(selected, {}).get("name", "غير معروف")
+        platform_name = PLATFORMS.get
+(, {}).get("name", "غير معروف")
         
         await update.message.reply_text(
             f"⏳ جاري معالجة الرابط من {platform_name}...\n\n"
@@ -125,25 +133,22 @@ async def handle_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"✅ المستخدم أرسل رابط: {url[:50]}... من {platform_name}")
         
     except Exception as e:
- 
-         await update.message.reply_text("❌ حدث خطأ، حاول مرة أخرى.")
+        logger.error(f"❌ خطأ في handle_url: {e}")
+        await update.message.reply_text("❌ حدث خطأ، حاول مرة أخرى.")
 
-# ========== تشغيل البوت ==========
+# ========== التشغيل الرئيسي ==========
 def main():
     try:
         logger.info("🚀 بدء تشغيل البوت...")
-        logger.info(f"📊 التوكن المستخدم: {HASSAN_7[:5]}...{HASSAN_7[-5:]}")
         
-        # إنشاء التطبيق
         app = Application.builder().token(HASSAN_7).build()
         
-        # إضافة المعالجات
         app.add_handler(CommandHandler("start", start))
         app.add_handler(CallbackQueryHandler(platform_selection, pattern="^platform_"))
         app.add_handler(CallbackQueryHandler(back, pattern="^back$"))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_url))
+        app.add_handler(MessageHandle
+r(filters.TEXT & ~filters.COMMAND, handle_url))
         
-        # تشغيل البوت
         logger.info("✅ البوت جاهز للاستخدام!")
         app.run_polling(drop_pending_updates=True)
         

@@ -1,15 +1,3 @@
-"""
-سكربت بسيط لتنظيف المسافات المخفية (Non-Breaking Space U+00A0)
-من أي ملف بايثون، وحل مشكلة:
-SyntaxError: invalid non-printable character U+00A0
-
-طريقة الاستخدام:
-    python3 fix_unicode.py hassan.py
-
-يسوي نسخة احتياطية باسم hassan.py.bak قبل التعديل،
-وبعدين يحفظ النسخة النظيفة بنفس اسم الملف الأصلي.
-"""
-
 import sys
 import shutil
 

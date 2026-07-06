@@ -22,7 +22,7 @@ MAX_QUALITY_HEIGHT = 2000  # حد أقصى للجودة (resolution) - 2000p
 # ===== المنصات المدعومة =====
 PLATFORMS = {
     "tiktok": "🎵 تيك توك (TikTok)",
-    "instagram": "📸 انستغرام (Instagra
+"instagram": "📸 انستغرام (Instagram)",
 mيتر / X",
     "facebook": "📘 فيسبوك (Facebook)",
     "reddit": "👽 ريديت (Reddit)",

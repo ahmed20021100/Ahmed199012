@@ -12,6 +12,8 @@ import yt_dlp
 TOKEN = os.getenv("BOT_TOKEN")  # ياخذ التوكن من الإعدادات
 
 
+
+ 
 # ===== معرف الأدمن =====
 ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
@@ -22,8 +24,8 @@ MAX_QUALITY_HEIGHT = 2000  # حد أقصى للجودة (resolution) - 2000p
 # ===== المنصات المدعومة =====
 PLATFORMS = {
     "tiktok": "🎵 تيك توك (TikTok)",
-"instagram": "📸 انستغرام (Instagram)",
-mيتر / X",
+    "instagram": "📸 انستغرام (Instagra
+mيتر (Twitter/X)",
     "facebook": "📘 فيسبوك (Facebook)",
     "reddit": "👽 ريديت (Reddit)",
     "pinterest": "📌 بينتريست (Pinterest)",
@@ -53,8 +55,12 @@ def load_data():
     try:
         with open('user_activity.json', 'r') as f:
             user_activity = json.load(f)
-    except
-:ge.json', 'r') as f:
+    except:
+     
+   user_activity = {}
+
+    try:
+        with open('command_usage.json', 'r') as f:
             command_usage = json.load(f)
     except:
         command_usage = {}
@@ -83,15 +89,15 @@ def log_user_activity(user_id, command):
     command_usage[command] += 1
     save_data()
 
-def get_platforms_keyboard():
+d
+ef get_platforms_keyboard():
     keyboard = [
         [InlineKeyboardButton(label, callback_data=key)]
         for key, label in PLATFORMS.items()
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def get_available_q
-ualities(url: str):
+def get_available_qualities(url: str):
     """
     يفحص الرابط ويرجع قائمة جودات فيديو متاحة (بدون تحميل).
     كل عنصر: {"label": نص للزر, "format": صيغة yt-dlp للتحميل}
@@ -99,6 +105,8 @@ ualities(url: str):
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
+
+ 
         "noplaylist": True,
         "skip_download": True,
     }
@@ -114,15 +122,14 @@ ualities(url: str):
     # نجمع الارتفاعات (heights) المتوفرة لفيديو فيه صوت وصورة معاً
     heights = set()
     has_audio_only = False
-    for f in formats:
-        if f.get("vcodec") not in (None, "none") and f.get("height"):
+    for f 
+i("vcodec") not in (None, "none") and f.get("height"):
             heights.add(int(f["height"]))
         if f.get("vcodec") in (None, "none") and f.get("acodec") not in (None, "none"):
             has_audio_only = True
 
     # فلترة الجودات بناءً على الحد الأقصى المسموح (2000p)
-    filtered_heights = [h for h 
-in heights if h <= MAX_QUALITY_HEIGHT]
+    filtered_heights = [h for h in heights if h <= MAX_QUALITY_HEIGHT]
     
     options = [{"label": "⭐ أفضل جودة متاحة", "format": f"bestvideo[height<={MAX_QUALITY_HEIGHT}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
 
@@ -138,7 +145,8 @@ in heights if h <= MAX_QUALITY_HEIGHT]
     return options
 
 def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/best", audio_only: bool = False):
-    """يحمل الفيديو/الصوت عبر yt-dlp حسب الصيغة المطلوبة ويرجع مسار الملف أو None لو فشل."""
+    """يحمل الفيد
+يو/الصوت عبر yt-dlp حسب الصيغة المطلوبة ويرجع مسار الملف أو None لو فشل."""
     output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
     ydl_opts = {
         "outtmpl": output_template,
@@ -149,12 +157,13 @@ def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/
     }
     if audio_only:
         ydl_opts["postprocessors"] = [{
-            "key":
- "FFmpegExtractAudio",
+            "key": "FFmpegExtractAudio",
             "preferredcodec": "mp3",
         }]
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+
+ 
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
             if audio_only:
@@ -165,14 +174,13 @@ def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/
         logging.error(f"خطأ في تحميل الفيديو: {e}")
     return None
 
-def check_file_size(file_path: str) -> tuple[bool, float]:
-
+def check_file_size(file_path: str) -> tuple:
     """
     يفحص حجم الملف ويقارنه مع الحد الأقصى.
     يرجع: (صحيح/خطأ, حجم بالميجابايت)
     """
-    size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    is_valid = size_mb <= MAX_TELEGRAM_MB
+    
+s is_valid = size_mb <= MAX_TELEGRAM_MB
     return is_valid, size_mb
 
 # ===== دوال البوت =====
@@ -184,12 +192,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_data[str(user_id)] = {
             'first_name': user.first_name,
             'last_name': user.last_name or '',
-           
- me': user.username or '',
+            'username': user.username or '',
             'user_id': user_id,
             'added_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             'is_bot': user.is_bot,
             'language_code': user.language_code or ''
+
+ 
         }
         save_data()
 
@@ -204,7 +213,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def start_callback(query, context):
     await query.message.edit_text(
         "🏠 اختر المنصة:",
-
         reply_markup=get_platforms_keyboard()
     )
 
@@ -214,20 +222,22 @@ async def stats_callback(message, context):
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
     week_ago = (now - timedelta(days=7)).strftime("%Y-%m-%d")
-    month_ago = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+    month_ago = (n
+oelta(days=30)).strftime("%Y-%m-%d")
 
     active_today = sum(1 for u in user_activity.values() if u.startswith(today))
     active_week = sum(1 for u in user_activity.values() if u >= week_ago)
     active_month = sum(1 for u in user_activity.values() if u >= month_ago)
 
-    stats_text = f
-"f"👥 **إجمالي المستخدمين:** {total_users}\n"
+    stats_text = f"👥 **إجمالي المستخدمين:** {total_users}\n"
     stats_text += f"🟢 **نشط اليوم:** {active_today}\n"
     stats_text += f"🟡 **نشط الأسبوع:** {active_week}\n"
     stats_text += f"🟠 **نشط الشهر:** {active_month}\n\n"
 
     sorted_commands = sorted(command_usage.items(), key=lambda x: x[1], reverse=True)[:5]
     stats_text += "📌 **المنصات الأكثر استخداماً:**\n"
+
+ 
     for cmd, count in sorted_commands:
         stats_text += f"`{cmd}`: {count} مرة\n"
 
@@ -247,9 +257,8 @@ async def users_callback(message, context):
 
         text += f"{i}. **{name}**\n"
         if username:
-            text += f"   🆔 @{username}\n"
-        text += f"   📅 {added}\n"
-        text += f"   🆔 {user_id_display}\n\n"
+            text += f"   🆔 @{username}\
+n       text += f"   🆔 {user_id_display}\n\n"
 
     await message.reply_text(text)
 
@@ -257,8 +266,7 @@ async def export_callback(message, context):
     data = {
         'users': user_data,
         'activity': user_activity,
-        'commands':
- command_usage,
+        'commands': command_usage,
         'export_date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'total_users': len(user_data)
     }
@@ -298,9 +306,10 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await start_callback(query, context)
 
     elif query.data == "admin_panel":
-        if user_id != ADMIN_ID:
-            await query.message.reply_text("⛔ هذا الخيار خاص 
-ب  return
+        if user_id != ADMIN_
+ID:
+            await query.message.reply_text("⛔ هذا الخيار خاص بالأدمن فقط")
+            return
 
         admin_keyboard = [
             [InlineKeyboardButton("📊 الإحصائيات", callback_data="admin_stats")],
@@ -316,6 +325,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     elif query.data == "admin_stats":
+
+ 
         await stats_callback(query.message, context)
 
     elif query.data == "admin_users":
@@ -335,10 +346,8 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = (update.message.text or "").
-strip()
-
-    if not text.startswith("http"):
+    text = (update.me
+s("http"):
         await update.message.reply_text("ابعث رابط صحيح يبدأ بـ http أو https 🙏")
         return
 
@@ -364,6 +373,8 @@ strip()
     keyboard = [
         [InlineKeyboardButton(opt["label"], callback_data=f"q_{i}")]
         for i, opt in enumerate(options)
+
+ 
     ]
     await checking_msg.edit_text(
         f"اختر الجودة الي تريدها:\n\n⚠️ _الحد الأقصى المسموح: {MAX_TELEGRAM_MB} MB_",
@@ -380,8 +391,7 @@ async def quality_chosen(query, context, user_id):
         idx = int(query.data.split("_", 1)[1])
         option = pending["options"][idx]
     except (ValueError, IndexError):
-        await query.message.reply_text("خيار غير صحيح، جرب من 
-جديد.")
+        await query.message.reply_text("خيار غير صحيح، جرب من جديد.")
         return
 
     url = pending["url"]
@@ -390,8 +400,8 @@ async def quality_chosen(query, context, user_id):
     status_msg = await query.message.reply_text("⏳ جاري التحميل...")
     tmp_dir = tempfile.mkdtemp(prefix="vid_")
 
-    try:
-        file_path = download_video(url, tmp_dir, format_spec=option["format"], audio_only=audio_only)
+    try
+:    file_path = download_video(url, tmp_dir, format_spec=option["format"], audio_only=audio_only)
 
         if file_path is None:
             await status_msg.edit_text(
@@ -406,7 +416,6 @@ async def quality_chosen(query, context, user_id):
             await status_msg.edit_text(
                 f"❌ حجم الملف {size_mb:.1f} MB\n\n"
                 f"الحد الأقصى المسموح: {MAX_TELEGRAM_MB} MB\n\n"
-
                 "جرب جودة أقل أو فيديو أقصر ⬇️"
             )
             return
@@ -428,8 +437,7 @@ async def quality_chosen(query, context, user_id):
         user_pending_link.pop(user_id, None)
 
 # ===== تسجيل الأوامر =====
-applic
-a)
+application.add_handler(CommandHandler("start", start))
 application.add_handler(CallbackQueryHandler(buttons))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 

@@ -17,7 +17,7 @@ ADMIN_ID = 1025310531  # غيّره لمعرفك انت
 
 # ===== إعدادات الفيديو =====
 MAX_TELEGRAM_MB = 2000  # حد أقصى لحجم الملف بالميجابايت (2GB - حد تيليجرام الأقصى)
-MAX_QUALITY_HEIGHT = 2000  # حد أقصى للجودة (resolution) - 2000p
+MAX_QUALITY_HEIGHT = 480  # حد أقصى للجودة (resolution) - 480p فقط
 
 # ===== المنصات المدعومة =====
 PLATFORMS = {
@@ -97,6 +97,7 @@ def get_available_qualities(url: str):
     """
     يفحص الرابط ويرجع قائمة جودات فيديو متاحة (بدون تحميل).
     كل عنصر: {"label": نص للزر, "format": صيغة yt-dlp للتحميل}
+    يحمل فقط جودات 480p أو أقل
     """
     ydl_opts = {
         "quiet": True,
@@ -114,20 +115,24 @@ def get_available_qualities(url: str):
     formats = info.get("formats") or []
 
     # نجمع الارتفاعات (heights) المتوفرة لفيديو فيه صوت وصورة معاً
+    # حد أقصى 480p فقط
     heights = set()
     has_audio_only = False
     for f in formats:
         if f.get("vcodec") not in (None, "none") and f.get("height"):
-            heights.add(int(f["height"]))
+            h = int(f["height"])
+            if h <= MAX_QUALITY_HEIGHT:  # فقط 480p أو أقل
+                heights.add(h)
         if f.get("vcodec") in (None, "none") and f.get("acodec") not in (None, "none"):
             has_audio_only = True
 
-    # فلترة الجودات بناءً على الحد الأقصى المسموح (2000p)
-    filtered_heights = [h for h in heights if h <= MAX_QUALITY_HEIGHT]
-    
-    options = [{"label": "⭐ أفضل جودة متاحة", "format": f"bestvideo[height<={MAX_QUALITY_HEIGHT}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
+    if not heights:
+        # لو ما في جودات بـ 480p أو أقل، ما نرجع شي
+        return None
 
-    for h in sorted(filtered_heights, reverse=True)[:4]:
+    options = [{"label": "⭐ أفضل جودة متاحة (حتى 480p)", "format": f"bestvideo[height<={MAX_QUALITY_HEIGHT}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"}]
+
+    for h in sorted(filtered_heights := [h for h in heights if h <= MAX_QUALITY_HEIGHT], reverse=True)[:4]:
         options.append({
             "label": f"🎞️ {h}p",
             "format": f"bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h}]",
@@ -349,8 +354,12 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     options = get_available_qualities(text)
     if not options:
         await checking_msg.edit_text(
-            "ما قدرت أوصل للفيديو 😕\n"
-            "تأكد إن الرابط صحيح، أو إن المحتوى مو خاص/محمي."
+            f"ما في جودات متاحة بـ {MAX_QUALITY_HEIGHT}p أو أقل 😕\n\n"
+            "الفيديو إما:\n"
+            "• متوفر بجودات أعلى من {MAX_QUALITY_HEIGHT}p فقط\n"
+            "• محمي أو خاص\n"
+            "• الرابط ما يشتغل\n\n"
+            "جرب فيديو ثاني 🙏"
         )
         return
 
@@ -361,7 +370,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for i, opt in enumerate(options)
     ]
     await checking_msg.edit_text(
-        f"اختر الجودة الي تريدها:\n\n⚠️ _الحد الأقصى المسموح: {MAX_TELEGRAM_MB} MB_",
+        f"اختر الجودة الي تريدها:\n\n⚠️ _الحد الأقصى: {MAX_QUALITY_HEIGHT}p و {MAX_TELEGRAM_MB} MB_",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 

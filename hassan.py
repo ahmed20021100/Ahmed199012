@@ -14,7 +14,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = 1025310531
 
 MAX_TELEGRAM_MB = 2000
-MAX_QUALITY_HEIGHT = 720
+MAX_QUALITY_HEIGHT = 4000  # Allow all qualities
 
 PLATFORMS = {
     "tiktok": "tiktok",

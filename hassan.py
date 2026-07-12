@@ -186,7 +186,7 @@ async def quality_chosen(query, context, user_id):
     url = user_info["url"]
     audio_only = option.get("audio_only", False)
 
-    status_msg = await query.message.reply_text("Downloading...")
+    status_msg = await query.message.reply_text("Downloading... (this may take a moment)")
     tmp_dir = tempfile.mkdtemp(prefix="vid_")
 
     try:
@@ -194,17 +194,21 @@ async def quality_chosen(query, context, user_id):
 
         if file_path is None:
             await status_msg.edit_text(
-                "Could not download with this quality\n"
-                "Try a lower quality or check the URL."
+                "Download failed\n\n"
+                "The video might be:\n"
+                "- Too large\n"
+                "- Protected/Private\n"
+                "- Server error\n\n"
+                "Try another quality or video"
             )
             return
 
         is_valid, size_mb = check_file_size(file_path)
         if not is_valid:
             await status_msg.edit_text(
-                f"File size: {size_mb:.1f} MB\n\n"
-                f"Max allowed: 2000 MB\n\n"
-                "Try a lower quality or shorter video"
+                f"File too large: {size_mb:.1f} MB\n\n"
+                f"Max: 2000 MB\n\n"
+                "Try lower quality"
             )
             return
 
@@ -219,7 +223,7 @@ async def quality_chosen(query, context, user_id):
 
     except Exception as e:
         logging.error(f"Error: {e}")
-        await status_msg.edit_text(f"Error: {e}")
+        await status_msg.edit_text(f"Error: {str(e)[:100]}")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         context.user_data.pop(user_id, None)

@@ -57,7 +57,8 @@ def get_available_qualities(url: str):
         }
     ]
 
-    for h in sorted_heights[:6]:
+    # Show only top 2 qualities (instead of 6)
+    for h in sorted_heights[:2]:
         label = f"{h}p"
         if h == medium_height:
             continue
@@ -79,6 +80,8 @@ def download_video(url: str, output_dir: str, format_spec: str = "best[ext=mp4]/
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "socket_timeout": 30,  # 30 second timeout
+        "http_chunk_size": 10485760,  # 10MB chunks
     }
     if audio_only:
         ydl_opts["postprocessors"] = [{
@@ -104,8 +107,23 @@ def check_file_size(file_path: str) -> tuple:
     return is_valid, size_mb
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("Google Chrome", callback_data="chrome")],
+    ]
     await update.message.reply_text(
-        "Send me a Google Drive, YouTube, or any video link and I will download it for you!"
+        "Select an option:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def chrome_selected(query, context):
+    await query.message.edit_text(
+        "Send me any video link and I will download it for you!\n\n"
+        "Examples:\n"
+        "- Google Drive\n"
+        "- YouTube\n"
+        "- TikTok\n"
+        "- Instagram\n"
+        "- Any other video link"
     )
 
 async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -134,12 +152,23 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [InlineKeyboardButton(opt["label"], callback_data=f"q_{i}")]
-        for i, opt in enumerate(options)
+        for i, opt in enumerate(options[:3])
     ]
     await checking_msg.edit_text(
         "Select quality:",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
+    
+    # If there are more than 3 options, send them in a separate message
+    if len(options) > 3:
+        keyboard2 = [
+            [InlineKeyboardButton(opt["label"], callback_data=f"q_{i}")]
+            for i, opt in enumerate(options[3:], start=3)
+        ]
+        await update.message.reply_text(
+            "More options:",
+            reply_markup=InlineKeyboardMarkup(keyboard2)
+        )
 
 async def quality_chosen(query, context, user_id):
     user_info = context.user_data.get(user_id)
@@ -201,7 +230,9 @@ async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.answer()
 
-    if query.data.startswith("q_"):
+    if query.data == "chrome":
+        await chrome_selected(query, context)
+    elif query.data.startswith("q_"):
         await quality_chosen(query, context, user_id)
 
 application.add_handler(CommandHandler("start", start))

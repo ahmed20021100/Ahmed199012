@@ -5,6 +5,7 @@ import os
 import tempfile
 import shutil
 import yt_dlp
+import asyncio
 
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -213,17 +214,38 @@ async def quality_chosen(query, context, user_id):
             return
 
         await status_msg.edit_text("Downloaded. Sending...")
-        if audio_only:
-            with open(file_path, "rb") as audio_file:
-                await context.bot.send_audio(chat_id=query.message.chat_id, audio=audio_file)
-        else:
-            with open(file_path, "rb") as video_file:
-                await context.bot.send_video(chat_id=query.message.chat_id, video=video_file)
-        await status_msg.delete()
+        
+        # Try to send with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if audio_only:
+                    with open(file_path, "rb") as audio_file:
+                        await context.bot.send_audio(chat_id=query.message.chat_id, audio=audio_file)
+                else:
+                    with open(file_path, "rb") as video_file:
+                        await context.bot.send_video(chat_id=query.message.chat_id, video=video_file)
+                await status_msg.delete()
+                break
+            except Exception as send_error:
+                if attempt < max_retries - 1:
+                    await status_msg.edit_text(f"Retrying... (attempt {attempt + 2}/{max_retries})")
+                    await asyncio.sleep(2)  # Wait before retry
+                else:
+                    raise send_error
 
     except Exception as e:
         logging.error(f"Error: {e}")
-        await status_msg.edit_text(f"Error: {str(e)[:100]}")
+        error_msg = str(e)[:100]
+        
+        # Check if it's a file size issue
+        if "413" in error_msg or "too large" in error_msg.lower():
+            await status_msg.edit_text(
+                "Request too large for Telegram\n\n"
+                "Try a lower quality or shorter video"
+            )
+        else:
+            await status_msg.edit_text(f"Error: {error_msg}")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
         context.user_data.pop(user_id, None)
